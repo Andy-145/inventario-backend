@@ -1,41 +1,47 @@
 // server.js
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
-dotenv.config();
 
 const productosRoutes   = require('./routes/productos');
 const categoriasRoutes  = require('./routes/categorias');
 const proveedoresRoutes = require('./routes/proveedores');
-const usuariosRoutes = require('./routes/usuarios');
+const usuariosRoutes    = require('./routes/usuarios');
 const movimientosRoutes = require('./routes/movimientos');
-const reportesRoutes = require('./routes/reportes');
-const uploadsRoutes     = require('./routes/uploads');
-
-
+const reportesRoutes    = require('./routes/reportes');
+// const uploadsRoutes  = require('./routes/uploads'); // ❌ ya no es necesario con Cloudinary
 
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// CORS (si quieres restringir dominios, usa CORS_ORIGIN=dominio1,dominio2)
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*',
+  credentials: true,
+}));
+
+// Body parsers con límites altos para base64
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
 app.get('/', (req, res) => res.send('API de Inventario funcionando ✅'));
 
-// monta los routers
-app.use('/api/uploads',     uploadsRoutes);
+// Monta routers (sin /api/uploads si migraste a Cloudinary)
 app.use('/api/productos',   productosRoutes);
 app.use('/api/categorias',  categoriasRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
-app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/usuarios',    usuariosRoutes);
 app.use('/api/movimientos', movimientosRoutes);
-app.use('/api/reportes', reportesRoutes);
+app.use('/api/reportes',    reportesRoutes);
 
-
-
+// Manejador de errores (evita que un throw mate el servicio)
+app.use((err, req, res, next) => {
+  console.error('❌ Error no controlado:', err);
+  res.status(err.status || 500).json({ error: err.message || 'Error interno' });
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
-  console.log('Conectado a la base de datos MySQL');
+  console.log('Backend listo (DB conectada en módulo ./db)');
 });
+

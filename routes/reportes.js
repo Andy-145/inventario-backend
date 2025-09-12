@@ -53,7 +53,7 @@ router.get('/total-productos', async (_req, res) => {
 // ===============================
 router.get('/total-unidades', async (_req, res) => {
   try {
-    const result = await db.query('SELECT COALESCE(SUM(cantidad),0)::int AS total_unidades FROM productos');
+    const result = await db.query('SELECT COALESCE(SUM(cantidad),0) AS total_unidades FROM productos');
     res.json(result.rows[0]);
   } catch (err) {
     console.error('⛔ GET /reportes/total-unidades:', err);
@@ -134,9 +134,9 @@ router.get('/kpis', async (req, res) => {
   const { from, to, fromDT, toDT } = rangoFechas(req.query);
   try {
     const v     = await db.query('SELECT COALESCE(SUM(cantidad * precio_unitario),0) AS valor_total FROM productos');
-    const a     = await db.query('SELECT COUNT(*)::int AS en_alerta FROM productos WHERE cantidad < stock_min');
-    const ent   = await db.query("SELECT COALESCE(SUM(cantidad),0)::int AS entradas FROM movimientos WHERE tipo='entrada' AND fecha BETWEEN $1 AND $2", [fromDT, toDT]);
-    const sal   = await db.query("SELECT COALESCE(SUM(cantidad),0)::int AS salidas  FROM movimientos WHERE tipo='salida'  AND fecha BETWEEN $1 AND $2", [fromDT, toDT]);
+    const a     = await db.query('SELECT COUNT(*)::int AS en_alerta FROM productos WHERE cantidad <= stock_min');
+    const ent   = await db.query("SELECT COALESCE(SUM(cantidad),0) AS entradas FROM movimientos WHERE tipo='entrada' AND fecha BETWEEN $1 AND $2", [fromDT, toDT]);
+    const sal   = await db.query("SELECT COALESCE(SUM(cantidad),0) AS salidas  FROM movimientos WHERE tipo='salida'  AND fecha BETWEEN $1 AND $2", [fromDT, toDT]);
     const costo = await db.query(`
       SELECT COALESCE(SUM(m.cantidad * p.precio_unitario),0) AS costo_salidas
       FROM movimientos m
@@ -197,7 +197,7 @@ router.get('/top-consumo', async (req, res) => {
   const limit = sanitizeLimit(req.query.limit, 5, 50);
 
   const sql = `
-    SELECT p.id_producto, p.nombre, SUM(m.cantidad)::int AS total_salidas
+    SELECT p.id_producto, p.nombre, COALESCE(SUM(m.cantidad),0) AS total_salidas
     FROM movimientos m
     JOIN productos p ON p.id_producto = m.id_producto
     WHERE m.tipo='salida' AND m.fecha BETWEEN $1 AND $2
@@ -223,7 +223,7 @@ router.get('/consumo-por-categoria', async (req, res) => {
   const sql = `
     SELECT c.id_categoria,
            c.nombre AS categoria,
-           COALESCE(SUM(m.cantidad),0)::int AS total
+           COALESCE(SUM(m.cantidad),0) AS total
     FROM movimientos m
     JOIN productos  p ON p.id_producto  = m.id_producto
     LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
@@ -301,11 +301,8 @@ router.get('/export.csv', async (req, res) => {
     const headers = ['fecha','tipo','codigo','producto','cantidad','precio_unitario','total','categoria','usuario'];
     let csv = headers.join(',') + '\n';
     for (const r of result.rows) {
-      const line = headers.map(h => {
-        const val = (r[h] ?? '');
-        const s = String(val).replace(/"/g, '""');
-        return `"${s}"`;
-      }).join(',');
+      const valEsc = h => String((r[h] ?? '')).replace(/"/g, '""');
+      const line = headers.map(h => `"${valEsc(h)}"`).join(',');
       csv += line + '\n';
     }
 
@@ -319,5 +316,3 @@ router.get('/export.csv', async (req, res) => {
 });
 
 module.exports = router;
-
-
